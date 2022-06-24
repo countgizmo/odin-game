@@ -4,18 +4,10 @@ import sdl "vendor:sdl2"
 
 PADDLE_WIDTH :: 20
 PADDLE_HEIGHT :: 60
+PADDLE_SPEED :: 250
 
-
-Paddle :: struct {
-  x: i32,
-  y: i32,
-  width: i32,
-  height: i32,
-  velocity: Vector2,
-}
-
-init_paddles :: proc() -> [2]Paddle {
-  paddles: [2]Paddle
+init_paddles :: proc() -> [2]Entity {
+  paddles: [2]Entity
 
   paddles[0] = {
     x = 5,
@@ -36,7 +28,7 @@ init_paddles :: proc() -> [2]Paddle {
   return paddles
 }
 
-render_paddels :: proc(renderer: ^sdl.Renderer, paddles: ^[2]Paddle) {
+render_paddels :: proc(renderer: ^sdl.Renderer, paddles: ^[2]Entity) {
   paddle_rects: [2]sdl.Rect
 
   paddle_rects[0] = sdl.Rect {
@@ -57,27 +49,29 @@ render_paddels :: proc(renderer: ^sdl.Renderer, paddles: ^[2]Paddle) {
   sdl.RenderFillRects(renderer, &paddle_rects[0], 2)
 }
 
-update_paddles :: proc(paddles: ^[2]Paddle, delta_time: f32) {
+update_paddles :: proc(paddles: ^[2]Entity, delta_time: f32) {
   paddles[0].y = paddles[0].y + i32((paddles[0].velocity.y * delta_time))
   paddles[1].y = paddles[1].y + i32((paddles[1].velocity.y * delta_time))
 }
 
-stop_paddle :: proc(paddle: ^Paddle, delta_time: f32) {
+stop_paddle :: proc(paddle: ^Entity, delta_time: f32) {
   paddle.velocity.y = 0;
 }
 
-move_paddle_up :: proc(paddle: ^Paddle, delta_time: f32) {
-  paddle.velocity.y = paddle.velocity.y + (-250 * 2 * delta_time)
+move_paddle_up :: proc(paddle: ^Entity) {
+  paddle.velocity.y = -PADDLE_SPEED
 
-  if paddle.y < 10 {
+  if paddle.y <= 0 {
+    paddle.y = 0
     paddle.velocity.y = 0
   }
 }
 
-move_paddle_down :: proc(paddle: ^Paddle, delta_time: f32) {
-  paddle.velocity.y = paddle.velocity.y + (250 * 2 * delta_time)
+move_paddle_down :: proc(paddle: ^Entity) {
+  paddle.velocity.y = PADDLE_SPEED
 
-  if paddle.y > WINDOW_HEIGHT - paddle.height - 10 {
+  if paddle.y >= WINDOW_HEIGHT - paddle.height {
     paddle.velocity.y = 0
+    paddle.y = WINDOW_HEIGHT - paddle.height
   }
 }

@@ -3,13 +3,21 @@ package game
 import "core:fmt"
 import sdl "vendor:sdl2"
 
-FPS :: 60
+FPS :: 30
 FRAME_TARGET_TIME :: 1000 / FPS
 
 WINDOW_WIDTH :: 800
 WINDOW_HEIGHT :: 600
 
-game_is_running := true
+block_size := i32((WINDOW_HEIGHT * WINDOW_WIDTH) / 20000)
+
+game_state: GameState = {
+  player1_score = 0,
+  player2_score = 0,
+  game_is_running = true,
+  game_is_paused = false,
+}
+
 last_frame_time: u32 = 0
 
 initialize_window :: proc() -> ^sdl.Renderer {
@@ -41,17 +49,25 @@ initialize_window :: proc() -> ^sdl.Renderer {
   return renderer
 }
 
+toggle_game_pause :: proc() {
+  game_state.game_is_paused = !game_state.game_is_paused
+}
+
 process_input :: proc(keys_pressed: ^map[sdl.Keycode]int) {
   event: sdl.Event
   sdl.PollEvent(&event)
 
   #partial switch event.type {
     case sdl.EventType.QUIT:
-      game_is_running = false
+      game_state.game_is_running = false
     case sdl.EventType.KEYDOWN:
       #partial switch event.key.keysym.sym {
+        case sdl.Keycode.SPACE:
+          keys_pressed[sdl.Keycode.SPACE] = 1
         case sdl.Keycode.ESCAPE:
-          game_is_running = false
+          game_state.game_is_running = false
+        case sdl.Keycode.p:
+          toggle_game_pause()
         case sdl.Keycode.UP:
           keys_pressed[sdl.Keycode.UP] = 1
         case sdl.Keycode.DOWN:
@@ -63,6 +79,8 @@ process_input :: proc(keys_pressed: ^map[sdl.Keycode]int) {
       }
     case sdl.EventType.KEYUP:
       #partial switch event.key.keysym.sym {
+        case sdl.Keycode.SPACE:
+          keys_pressed[sdl.Keycode.SPACE] = 0
         case sdl.Keycode.UP:
           keys_pressed[sdl.Keycode.UP] = 0
         case sdl.Keycode.DOWN:
@@ -83,16 +101,31 @@ right_paddle_not_moving :: proc(keys_pressed: map[sdl.Keycode]int) -> bool {
   return (keys_pressed[sdl.Keycode.UP] == 0) && (keys_pressed[sdl.Keycode.DOWN] == 0)
 }
 
-update :: proc(ball: ^Ball, paddles: ^[2]Paddle, keys_pressed: map[sdl.Keycode]int) {
+entities_are_colliding :: proc(entity1: Entity, entity2: Entity) -> bool {
+  return entity1.x < entity2.x + entity2.width &&
+         entity1.x + entity1.width > entity2.x &&
+         entity1.y < entity2.y + entity2.height &&
+         entity1.y + entity1.height > entity2.y
+}
+
+get_delta_time :: proc() -> f32 {
+  delta_time: f32 = (cast(f32)sdl.GetTicks() - cast(f32)last_frame_time) / 1000.0
+  last_frame_time = sdl.GetTicks()
+  return delta_time
+}
+
+delay :: proc() {
   delay := FRAME_TARGET_TIME - (sdl.GetTicks() - last_frame_time)
 
   if (delay > 0 && delay <= FRAME_TARGET_TIME) {
     sdl.Delay(delay)
   }
+}
 
-  // delta_time in seconds
-  delta_time: f32 = (cast(f32)sdl.GetTicks() - cast(f32)last_frame_time) / 1000.0
-  last_frame_time = sdl.GetTicks()
+update :: proc(delta_time: f32, ball: ^Entity, paddles: ^[2]Entity, keys_pressed: map[sdl.Keycode]int) {
+  if entities_are_colliding(ball^, paddles[0]) || entities_are_colliding(ball^, paddles[1]) {
+    ball_bounce_horizontally(ball)
+  }
 
   if ball.x >= (WINDOW_WIDTH - ball.width) || ball.x < 0 {
     ball_bounce_horizontally(ball)
@@ -111,19 +144,23 @@ update :: proc(ball: ^Ball, paddles: ^[2]Paddle, keys_pressed: map[sdl.Keycode]i
   }
 
   if keys_pressed[sdl.Keycode.UP] == 1 {
-    move_paddle_up(&paddles[1], delta_time)
+    move_paddle_up(&paddles[1])
   }
 
   if keys_pressed[sdl.Keycode.DOWN] == 1 {
-    move_paddle_down(&paddles[1], delta_time)
+    move_paddle_down(&paddles[1])
   }
 
   if keys_pressed[sdl.Keycode.w] == 1 {
-    move_paddle_up(&paddles[0], delta_time)
+    move_paddle_up(&paddles[0])
   }
 
   if keys_pressed[sdl.Keycode.s] == 1 {
-    move_paddle_down(&paddles[0], delta_time)
+    move_paddle_down(&paddles[0])
+  }
+
+  if keys_pressed[sdl.Keycode.SPACE] == 1{
+    launch_ball(ball)
   }
 
   update_paddles(paddles, delta_time)
@@ -131,29 +168,30 @@ update :: proc(ball: ^Ball, paddles: ^[2]Paddle, keys_pressed: map[sdl.Keycode]i
 }
 
 render_playground :: proc(renderer: ^sdl.Renderer) {
-  NET_CHUNKS_COUNT :: 15
-  net_gap := i32(WINDOW_HEIGHT / NET_CHUNKS_COUNT)
-  net: [NET_CHUNKS_COUNT]sdl.Rect
+  net_chunks_count := i32(800 / (block_size / 2))
+  net_gap := i32(block_size)
+  net: [dynamic]sdl.Rect
 
-
-  for i in 0..=(NET_CHUNKS_COUNT - 1) {
-    net[i] = sdl.Rect{
-      x = (WINDOW_WIDTH / 2) - (net_gap / 2),
-      y = net_gap * i32(i),
-      w = net_gap / 2,
-      h = net_gap / 2}
+  for i in 0..=(net_chunks_count - 1) {
+    append(&net, sdl.Rect{
+      x = (WINDOW_WIDTH / 2) - (block_size / 2),
+      y = block_size * 2 * i32(i),
+      w = block_size,
+      h = block_size,
+    })
   }
 
   sdl.SetRenderDrawColor(renderer, 255, 255, 255, 100)
-  sdl.RenderFillRects(renderer, &net[0], NET_CHUNKS_COUNT)
+  sdl.RenderFillRects(renderer, &net[0], net_chunks_count)
 }
 
-render :: proc(renderer: ^sdl.Renderer, ball: ^Ball, paddels: ^[2]Paddle) {
+render :: proc(renderer: ^sdl.Renderer, ball: ^Entity, paddels: ^[2]Entity) {
   sdl.SetRenderDrawColor(renderer, 0, 0, 0, 255)
   sdl.SetRenderDrawBlendMode(renderer, sdl.BlendMode.BLEND)
   sdl.RenderClear(renderer)
 
   render_playground(renderer)
+  render_score(renderer, 0, 0)
   render_paddels(renderer, paddels)
   render_ball(ball, renderer)
 
@@ -170,11 +208,19 @@ main :: proc() {
 
   ball := init_ball()
   paddles := init_paddles()
+  render(renderer, &ball, &paddles)
+
   keys_pressed : map[sdl.Keycode]int
 
-  for game_is_running == true {
+  for game_state.game_is_running == true {
+    delay()
+    delta_time := get_delta_time()
     process_input(&keys_pressed)
-    update(&ball, &paddles, keys_pressed)
+
+    if game_state.game_is_paused == false {
+      update(delta_time, &ball, &paddles, keys_pressed)
+    }
+
     render(renderer, &ball, &paddles)
   }
 }
