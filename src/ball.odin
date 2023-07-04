@@ -6,8 +6,7 @@ BALL_SPEED :: 200
 
 init_ball :: proc() -> Entity {
   b: Entity = {
-    x = WINDOW_WIDTH / 2 + 30,
-    y = 200,
+    position = {WINDOW_WIDTH / 2 + 30, 200},
     width = 15,
     height = 15,
     velocity = {0, 0}}
@@ -15,14 +14,14 @@ init_ball :: proc() -> Entity {
 }
 
 launch_ball :: proc(b: ^Entity) {
-  b.velocity.x = BALL_SPEED
-  b.velocity.y = BALL_SPEED
+  b.velocity[0] = BALL_SPEED
+  b.velocity[1] = BALL_SPEED
 }
 
 render_ball :: proc(b: ^Entity, renderer: ^sdl.Renderer) {
   ball_rect := sdl.Rect{
-    x = b.x,
-    y = b.y,
+    x = i32(b.position[0]),
+    y = i32(b.position[1]),
     w = b.width,
     h = b.height}
 
@@ -31,14 +30,13 @@ render_ball :: proc(b: ^Entity, renderer: ^sdl.Renderer) {
 }
 
 update_ball :: proc(b: ^Entity, delta_time: f32) {
-  b.x = b.x + i32((b.velocity.x * delta_time))
-  b.y = b.y + i32((b.velocity.y * delta_time))
+  b.position = b.position + b.velocity * delta_time
 }
 
 ball_bounce_horizontally :: proc (b: ^Entity) {
-  b.velocity.x = b.velocity.x * -1
+  b.velocity[0] = b.velocity[0] * -1
 }
 
 ball_bounce_vertically :: proc (b: ^Entity) {
-  b.velocity.y = b.velocity.y * -1
+  b.velocity[1] = b.velocity[1] * -1
 }

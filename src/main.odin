@@ -3,7 +3,7 @@ package game
 import "core:fmt"
 import sdl "vendor:sdl2"
 
-FPS :: 30
+FPS :: 60
 FRAME_TARGET_TIME :: 1000 / FPS
 
 WINDOW_WIDTH :: 800
@@ -102,10 +102,21 @@ right_paddle_not_moving :: proc(keys_pressed: map[sdl.Keycode]int) -> bool {
 }
 
 entities_are_colliding :: proc(entity1: Entity, entity2: Entity) -> bool {
-  return entity1.x < entity2.x + entity2.width &&
-         entity1.x + entity1.width > entity2.x &&
-         entity1.y < entity2.y + entity2.height &&
-         entity1.y + entity1.height > entity2.y
+  w1 := f32(entity1.width)
+  h1 := f32(entity1.height)
+  w2 := f32(entity2.width)
+  h2 := f32(entity2.height)
+
+  is_vertical_coll := (entity1.position[1] >= entity2.position[1] &&
+                       entity1.position[1] <= entity2.position[1] + h1) ||
+                      (entity1.position[1] + h1 >= entity2.position[1] &&
+                       entity1.position[1] + h1 <= entity2.position[1] + h2)
+
+  is_horizontal_coll := (entity1.position[0] >= entity2.position[0] &&
+                         entity1.position[0] <= entity2.position[0] + w2) ||
+                        (entity1.position[0] + w1 >= entity2.position[0] &&
+                         entity1.position[0] + w1 <= entity2.position[0] + w2)
+  return is_horizontal_coll && is_vertical_coll
 }
 
 get_delta_time :: proc() -> f32 {
@@ -127,11 +138,11 @@ update :: proc(delta_time: f32, ball: ^Entity, paddles: ^[2]Entity, keys_pressed
     ball_bounce_horizontally(ball)
   }
 
-  if ball.x >= (WINDOW_WIDTH - ball.width) || ball.x < 0 {
+  if ball.position[0] >= f32(WINDOW_WIDTH - ball.width) || ball.position[0] < 0 {
     ball_bounce_horizontally(ball)
   }
 
-  if ball.y >= (WINDOW_HEIGHT - ball.height) || ball.y < 0 {
+  if ball.position[1] >= f32(WINDOW_HEIGHT - ball.height) || ball.position[1] < 0 {
     ball_bounce_vertically(ball)
   }
 

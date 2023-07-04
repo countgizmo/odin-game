@@ -1,13 +1,9 @@
 package game
 
-Vector2 :: struct {
-  x: f32,
-  y: f32,
-}
+Vector2 :: [2]f32
 
 Entity :: struct {
-  x: i32,
-  y: i32,
+  position: Vector2,
   width: i32,
   height: i32,
   velocity: Vector2,
